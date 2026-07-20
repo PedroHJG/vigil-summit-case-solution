@@ -1,0 +1,29 @@
+# Ambientes / segredos
+.env
+*.env
+!.env.example
+credentials/
+*.json.key
+service_account.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Dados locais de containers
+n8n-evolution/n8n-data/*
+!n8n-evolution/n8n-data/.gitkeep
+n8n-evolution/evolution-data/*
+!n8n-evolution/evolution-data/.gitkeep
+
+# IDE / SO
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

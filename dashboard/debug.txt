@@ -1,0 +1,2 @@
+['FUNNEL_RAMP', 'INK_PRIMARY', 'INK_SECONDARY', 'SERIES_BLUE', 'STATUS_LABELS', 'STATUS_ORDER', 'SURFACE', 'TEMP_COLORS', 'TEMP_ORDER', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__', 'base_layout', 'cargo_temperatura', 'funnel_chart', 'go', 'leads_por_cargo', 'leads_por_dia', 'pd', 'prob_distribuicao', 'status_detalhado', 'temperatura_chart']
+C:\Users\phjgo\Documents\projetos_programacao\case-ai-engineer-pareto\dashboard\components\charts.py

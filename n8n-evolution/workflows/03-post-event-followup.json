@@ -1,0 +1,54 @@
+{
+  "name": "Vigil Summit — 03 Post-Event Follow-up",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c3d4e5f6-0003-4000-8000-000000000001",
+      "name": "Diariamente às 10h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/internal/follow-ups/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $env.BACKEND_API_KEY }}" }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "c3d4e5f6-0003-4000-8000-000000000002",
+      "name": "Disparar follow-ups (backend)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    }
+  ],
+  "connections": {
+    "Diariamente às 10h": {
+      "main": [
+        [
+          { "node": "Disparar follow-ups (backend)", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
