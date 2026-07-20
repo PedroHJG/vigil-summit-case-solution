@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { vertexShader } from './shaders/particle.vert';
-import { fragmentShader } from './shaders/particle.frag';
+import { vertexShader } from './Shaders/particle.vert';
+import { fragmentShader } from './Shaders/particle.frag';
 
 /**
  * ParticleSystem

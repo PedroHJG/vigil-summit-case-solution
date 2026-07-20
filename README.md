@@ -105,17 +105,17 @@ negócio derivadas (probabilidade de presença, temperatura do lead).
 
 ## Justificativas de stack
 
-| Camada | Escolha | Por quê |
-|---|---|---|
-| LLM | **Claude (`claude-opus-4-8`)** via `langchain-anthropic` | Modelo mais capaz da família Opus para conversa consultiva com executivos, tool calling nativo e raciocínio estruturado; configurável por env (`ANTHROPIC_MODEL`) sem mudar código. |
+| Camada              | Escolha                                                        | Por quê                                                                                                                                                                                                      |
+| ------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| LLM                 | **Claude (`claude-opus-4-8`)** via `langchain-anthropic`       | Modelo mais capaz da família Opus para conversa consultiva com executivos, tool calling nativo e raciocínio estruturado; configurável por env (`ANTHROPIC_MODEL`) sem mudar código.                          |
 | Framework de agente | **LangChain** (`langchain>=0.3,<0.4` — API clássica de agents) | `create_tool_calling_agent` + `AgentExecutor` para tools tipadas, `RunnableWithMessageHistory` + `PostgresChatMessageHistory` para memória nativa persistida no Postgres — sem gerência manual de histórico. |
-| Banco | **Supabase (PostgreSQL)** | Postgres gerenciado com REST imediata (usada pelo polling do n8n), RLS para segurança, e um único banco para negócio + memória do agente. |
-| Orquestração | **n8n (Docker local)** | Roteador visual de gatilhos (polling, cron) sem lógica de negócio — trocar/inspecionar fluxos não exige deploy do backend; 5 workflows finos, cada um só dispara um endpoint. |
-| WhatsApp | **Evolution API** | API aberta e self-hosted para WhatsApp, com webhook de mensagens, mensagens interativas (botões/listas) e envio de texto. |
-| Backend | **FastAPI (Python)** | Contratos Pydantic compartilhados entre validação e OpenAPI automática; mesma linguagem do ecossistema LangChain. |
-| Dashboard | **Streamlit + Plotly** | Painel analítico em Python puro, com auto-refresh, lendo as mesmas tabelas/views do Supabase; scoring de leads calculado em Python, sem duplicar lógica no banco. |
-| E-mail | **SMTP Gmail (app password)** | Reusa a conta Google já necessária p/ Sheets/Calendar; `EMAIL_MOCK_MODE=true` permite demo completa sem credenciais de e-mail. |
-| Frontend 3D | **Three.js + GSAP** | Cadeado 3D (modelo comprimido com Draco, ~1,4 MB) e campo de partículas na landing; loop de render pausado fora da viewport (IntersectionObserver) para não gastar CPU/GPU com a seção fora da tela. |
+| Banco               | **Supabase (PostgreSQL)**                                      | Postgres gerenciado com REST imediata (usada pelo polling do n8n), RLS para segurança, e um único banco para negócio + memória do agente.                                                                    |
+| Orquestração        | **n8n (Docker local)**                                         | Roteador visual de gatilhos (polling, cron) sem lógica de negócio — trocar/inspecionar fluxos não exige deploy do backend; 5 workflows finos, cada um só dispara um endpoint.                                |
+| WhatsApp            | **Evolution API**                                              | API aberta e self-hosted para WhatsApp, com webhook de mensagens, mensagens interativas (botões/listas) e envio de texto.                                                                                    |
+| Backend             | **FastAPI (Python)**                                           | Contratos Pydantic compartilhados entre validação e OpenAPI automática; mesma linguagem do ecossistema LangChain.                                                                                            |
+| Dashboard           | **Streamlit + Plotly**                                         | Painel analítico em Python puro, com auto-refresh, lendo as mesmas tabelas/views do Supabase; scoring de leads calculado em Python, sem duplicar lógica no banco.                                            |
+| E-mail              | **SMTP Gmail (app password)**                                  | Reusa a conta Google já necessária p/ Sheets/Calendar; `EMAIL_MOCK_MODE=true` permite demo completa sem credenciais de e-mail.                                                                               |
+| Frontend 3D         | **Three.js + GSAP**                                            | Cadeado 3D (modelo comprimido com Draco, ~1,4 MB) e campo de partículas na landing; loop de render pausado fora da viewport (IntersectionObserver) para não gastar CPU/GPU com a seção fora da tela.         |
 
 ## Estrutura de pastas
 
@@ -295,10 +295,10 @@ real de agora com `EVENT_DATE` (`backend/.env`) — **é essa variável que se m
 para simular o tempo passando**, nunca a data do sistema operacional (quebraria
 TLS/OAuth/Docker). Resumo rápido:
 
-| Cenário | Ajuste |
-|---|---|
-| Toque `companion` (D-7) | `EVENT_DATE` = hoje + 6 dias |
-| Toque `logistics` (D-1) | `EVENT_DATE` = amanhã |
+| Cenário                             | Ajuste                                                        |
+| ----------------------------------- | ------------------------------------------------------------- |
+| Toque `companion` (D-7)             | `EVENT_DATE` = hoje + 6 dias                                  |
+| Toque `logistics` (D-1)             | `EVENT_DATE` = amanhã                                         |
 | Pós-evento / agendamento de reunião | `EVENT_DATE` = ontem + `UPDATE leads SET status='compareceu'` |
 
 Depois de editar, **sempre reinicie o backend** (`.\restart.ps1`). O guia completo —
@@ -348,29 +348,6 @@ Problemas mais comuns ao rodar localmente (guia completo com comandos em
 - **Régua proativa**: idempotente por `unique(lead_id, touchpoint)`; janela de envio
   08h–20h; máximo 1 toque por lead a cada 20h; expurga (`status='perdido'`) leads que
   não respondem 24h após a última chamada, liberando a vaga.
-
-## Publicando no GitHub
-
-> ⚠️ Este diretório **não tem um repositório git próprio** hoje — o `.git` mais
-> próximo encontrado está na raiz do seu perfil do Windows
-> (`C:\Users\<usuário>`), não dentro de `case-ai-engineer-pareto`. Antes de publicar,
-> inicialize um repositório escopado a esta pasta (o `.gitignore` já existe e cobre
-> `.env`, `credentials/`, `node_modules/`, `.venv/` e os volumes do Docker):
->
-> ```bash
-> cd case-ai-engineer-pareto
-> git init
-> git add .
-> git commit -m "Initial commit: Vigil Summit AI solution"
-> git branch -M main
-> git remote add origin <URL_DO_SEU_REPO_NO_GITHUB>
-> git push -u origin main
-> ```
->
-> Antes do `git add .`, rode `git status` e confira que nenhum arquivo de
-> `backend/credentials/` ou `.env` real apareceu — eles devem estar ignorados. Se você
-> já rodou `git init` em outro lugar por engano, **não copie o commit anterior**; comece
-> este histórico do zero aqui.
 
 ## Documentação técnica
 
