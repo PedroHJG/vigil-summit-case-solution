@@ -1,0 +1,108 @@
+# Blueprint do Render para o backend do Vigil Summit.
+#
+# Uso: Render Dashboard → New + → Blueprint → conecte este repositório.
+# O Render detecta este arquivo automaticamente e propõe o serviço abaixo.
+# Variáveis com `sync: false` ficam em branco no Blueprint — preencha-as na
+# aba Environment do serviço depois de criado (nunca vão para o git).
+#
+# Alternativa sem Blueprint: New + → Web Service → conecte o repo → preencha
+# manualmente Root Directory/Build/Start Command com os mesmos valores daqui.
+
+services:
+  - type: web
+    name: vigil-summit-backend
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # --- Aplicação -----------------------------------------------------
+      - key: BACKEND_API_KEY
+        sync: false
+      # Inclua aqui a URL de produção da landing (Vercel) e as de teste local
+      - key: CORS_ORIGINS
+        sync: false
+
+      # --- Supabase --------------------------------------------------------
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+      # --- Anthropic ---------------------------------------------------------
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-4-8
+      - key: ANTHROPIC_MAX_TOKENS
+        value: "1024"
+
+      # --- Evolution API (WhatsApp) --------------------------------------------
+      - key: EVOLUTION_API_URL
+        sync: false
+      - key: EVOLUTION_API_KEY
+        sync: false
+      - key: EVOLUTION_INSTANCE
+        value: vigil
+
+      # --- Google (Sheets + Calendar) -------------------------------------------
+      # Os arquivos correspondentes são enviados via Render "Secret Files"
+      # (Dashboard → serviço → Environment → Secret Files) com estes MESMOS
+      # caminhos relativos — não existe filesystem persistente fora disso.
+      - key: GOOGLE_SERVICE_ACCOUNT_FILE
+        value: credentials/service_account.json
+      - key: GOOGLE_OAUTH_CLIENT_FILE
+        value: credentials/oauth_client.json
+      - key: GOOGLE_OAUTH_TOKEN_FILE
+        value: credentials/google_oauth_token.json
+      - key: GOOGLE_SHEETS_ID
+        sync: false
+      - key: GOOGLE_SHEETS_WORKSHEET
+        value: Validacao
+      - key: GOOGLE_CALENDAR_ID
+        value: primary
+
+      # --- Reuniões pós-evento -----------------------------------------------
+      - key: MEETING_TIMEZONE
+        value: America/Sao_Paulo
+      - key: MEETING_BUSINESS_START_HOUR
+        value: "9"
+      - key: MEETING_BUSINESS_END_HOUR
+        value: "18"
+      - key: MEETING_MIN_LEAD_DAYS
+        value: "2"
+      - key: MEETING_SEARCH_DAYS
+        value: "10"
+
+      # --- E-mail (SMTP Gmail) ------------------------------------------------
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SALES_ALERT_EMAIL
+        sync: false
+      # true = não envia e-mails reais (seguro para o primeiro deploy);
+      # troque para false depois de configurar o SMTP.
+      - key: EMAIL_MOCK_MODE
+        value: "true"
+
+      # --- Evento --------------------------------------------------------------
+      - key: EVENT_NAME
+        value: "Vigil Summit — Segurança para a Era da IA"
+      - key: EVENT_DATE
+        value: "2026-08-20T09:00:00-03:00"
+      - key: EVENT_LOCATION
+        value: "São Paulo, SP"
+      - key: EVENT_LANDING_URL
+        sync: false
