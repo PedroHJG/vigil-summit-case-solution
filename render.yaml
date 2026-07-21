@@ -51,15 +51,27 @@ services:
         value: vigil
 
       # --- Google (Sheets + Calendar) -------------------------------------------
-      # Os arquivos correspondentes são enviados via Render "Secret Files"
-      # (Dashboard → serviço → Environment → Secret Files) com estes MESMOS
-      # caminhos relativos — não existe filesystem persistente fora disso.
+      # Caminhos onde o backend grava/lê os arquivos de credencial. Não altere
+      # os valores abaixo — eles precisam bater com os campos *_JSON logo a
+      # seguir (o backend materializa um a partir do outro no startup).
       - key: GOOGLE_SERVICE_ACCOUNT_FILE
         value: credentials/service_account.json
       - key: GOOGLE_OAUTH_CLIENT_FILE
         value: credentials/oauth_client.json
       - key: GOOGLE_OAUTH_TOKEN_FILE
         value: credentials/google_oauth_token.json
+      # Cole aqui o CONTEÚDO BRUTO (JSON completo, em uma linha) de cada
+      # credencial. O Render não tem filesystem persistente fora do git, então
+      # os arquivos acima só passam a existir porque o backend os escreve no
+      # boot a partir destas env vars (core/bootstrap_credentials.py) — mais
+      # simples e portável do que depender do recurso de "Secret Files" da
+      # plataforma (cujas regras de nome de arquivo variam).
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_JSON
+        sync: false
+      - key: GOOGLE_OAUTH_TOKEN_JSON
+        sync: false
       - key: GOOGLE_SHEETS_ID
         sync: false
       - key: GOOGLE_SHEETS_WORKSHEET

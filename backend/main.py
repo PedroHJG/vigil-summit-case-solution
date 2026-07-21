@@ -51,6 +51,15 @@ app.include_router(routes_webhooks.router)
 
 @app.on_event("startup")
 def startup() -> None:
+    # Grava credenciais Google a partir de env vars, se fornecidas (deploys
+    # sem filesystem versionável, ex. Render) — nunca falha o boot.
+    try:
+        from core.bootstrap_credentials import materialize_google_credentials
+
+        materialize_google_credentials()
+    except Exception:
+        logger.warning("Falha ao materializar credenciais Google via env var.", exc_info=True)
+
     # Garante a tabela de memória do LangChain (idempotente); a migration 0001
     # também a cria, então falhas aqui não são fatais.
     try:

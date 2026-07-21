@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # `python -m scripts.google_oauth_setup`.
     google_oauth_client_file: str = "credentials/oauth_client.json"
     google_oauth_token_file: str = "credentials/google_oauth_token.json"
+    # Alternativa às Secret Files em hosts sem filesystem persistente/UI de
+    # arquivo restritiva (ex.: Render): cole o JSON bruto da credencial numa
+    # env var comum. Se preenchida, é escrita no *_FILE correspondente no
+    # startup (ver core/bootstrap_credentials.py) — nenhum outro código muda.
+    google_service_account_json: str = ""
+    google_oauth_client_json: str = ""
+    google_oauth_token_json: str = ""
     google_sheets_id: str = ""
     google_sheets_worksheet: str = "Validacao"
     google_calendar_id: str = "primary"
