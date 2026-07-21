@@ -19,6 +19,14 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Fixa o interpretador — sem isso o Render pode escolher a versão mais
+      # recente disponível (ex.: 3.14), que quebra langchain/pydantic (PEP 649
+      # de avaliação lazy de type hints ainda não suportada por eles). Esta é
+      # a forma mais confiável de fixar a versão no Render; runtime.txt fica
+      # como redundância, mas nem sempre é respeitado.
+      - key: PYTHON_VERSION
+        value: 3.11.9
+
       # --- Aplicação -----------------------------------------------------
       - key: BACKEND_API_KEY
         sync: false
