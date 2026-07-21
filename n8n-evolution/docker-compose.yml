@@ -68,6 +68,20 @@ services:
     expose:
       - "5432"
 
+  cloudflared:
+    container_name: vigil-cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # Quick Tunnel: gratuito, sem conta/cartão, expõe a Evolution API (serviço
+    # "api" na rede evolution-net) publicamente em https://ALGO.trycloudflare.com.
+    # A URL muda a cada restart do container — veja com:
+    #   docker compose logs cloudflared | grep trycloudflare
+    command: tunnel --no-autoupdate --url http://api:8080
+    depends_on:
+      - api
+    networks:
+      - evolution-net
+
   n8n:
     image: n8nio/n8n:latest
     container_name: vigil-n8n
