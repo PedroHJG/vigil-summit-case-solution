@@ -17,6 +17,14 @@ from services import lead_service
 logger = logging.getLogger(__name__)
 
 
+def _clamp_score(valor) -> int | None:
+    """Normaliza o setor_aderencia do LLM para um inteiro 0-100 (ou None)."""
+    try:
+        return max(0, min(100, int(round(float(valor)))))
+    except (TypeError, ValueError):
+        return None
+
+
 def enrich_lead(lead_id: str) -> EnrichmentResult:
     supabase = get_supabase()
     lead = lead_service.get_lead(lead_id)
@@ -30,6 +38,7 @@ def enrich_lead(lead_id: str) -> EnrichmentResult:
 
     summary = industry = size_hint = None
     security_context = None
+    setor_score = None
     enrich_status = "falha"
 
     if scraped["content"]:
@@ -46,6 +55,7 @@ def enrich_lead(lead_id: str) -> EnrichmentResult:
             industry = parsed.get("industry")
             size_hint = parsed.get("company_size_hint")
             security_context = {"ganchos": parsed.get("ganchos", [])}
+            setor_score = _clamp_score(parsed.get("setor_aderencia"))
             enrich_status = "sucesso"
         except Exception as exc:
             logger.exception("Falha ao resumir conteúdo do lead %s", lead_id)
@@ -68,11 +78,19 @@ def enrich_lead(lead_id: str) -> EnrichmentResult:
         on_conflict="lead_id",
     ).execute()
 
+    # setor_score vive em `leads` (o scoring do dashboard e a validação de ICP
+    # leem dessa tabela). Só grava quando o LLM classificou de fato.
+    if setor_score is not None:
+        supabase.table("leads").update({"setor_score": setor_score}).eq(
+            "id", lead_id
+        ).execute()
+
     lead_service.update_status(lead_id, "enriquecido")
     lead_service.log_event(
         lead_id,
         "enriquecimento",
-        {"status": enrich_status, "paginas": len(scraped["pages_scraped"])},
+        {"status": enrich_status, "paginas": len(scraped["pages_scraped"]),
+         "setor_score": setor_score},
     )
 
     return EnrichmentResult(

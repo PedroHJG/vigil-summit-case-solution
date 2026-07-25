@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     event_date: datetime = datetime.fromisoformat("2026-08-20T09:00:00-03:00")
     event_location: str = "São Paulo, SP"
     event_landing_url: str = "http://localhost:5173"
+    # Capacidade do evento (RAG: 120 lugares). Ao esgotar, novas confirmações
+    # são bloqueadas (FCFS) e interações de não-confirmados recebem aviso.
+    event_capacity: int = 120
 
     # --- Scraper ----------------------------------------------------------------
     scraper_timeout_seconds: float = 10.0

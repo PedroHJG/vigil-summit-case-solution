@@ -108,3 +108,85 @@ def log_event(lead_id: str | None, event_type: str, payload: dict) -> None:
         ).execute()
     except Exception:
         logger.exception("Falha ao registrar agent_event %s", event_type)
+
+
+# =============================================================================
+# ICP (perfil-alvo do RAG) e capacidade do evento
+# =============================================================================
+
+# Cargos-alvo do formulário que já contam como decisor de segurança/TI.
+CARGOS_DECISORES = {"CTO", "CISO", "Diretor de TI", "Gestor de Risco"}
+# Palavras que indicam cargo decisor quando o curador preenche texto livre
+# (ex.: "Head de Segurança", "CIO", "VP de Tecnologia").
+_DECISOR_KEYWORDS = (
+    "ciso", "cto", "cio", "cso", "diretor", "diretora", "head", "chief",
+    "vp", "vice-presidente", "gerente de seguran", "gerente de risco",
+    "gerente de ti", "coordenador de seguran", "superintendente",
+)
+
+# Status que já ocupam uma vaga garantida no evento.
+STATUS_COM_VAGA = {
+    "confirmado", "compareceu", "ausente", "em_follow_up", "reuniao_agendada",
+}
+
+
+def is_decisor(cargo: str | None) -> bool:
+    """True se o cargo indica um decisor de segurança/TI (elegível ao ICP)."""
+    if not cargo:
+        return False
+    if cargo in CARGOS_DECISORES:
+        return True
+    c = cargo.strip().lower()
+    return any(k in c for k in _DECISOR_KEYWORDS)
+
+
+def parse_funcionarios(valor) -> int | None:
+    """'850', 'entre 200 e 500', '1.200+' -> maior número encontrado (ou None)."""
+    if valor is None:
+        return None
+    numeros = re.findall(r"\d+", str(valor).replace(".", ""))
+    return max(int(n) for n in numeros) if numeros else None
+
+
+def checar_icp(lead: dict, min_funcionarios: int = 200) -> tuple[bool, str]:
+    """Aplica os requisitos DUROS do RAG (cargo decisor + porte 200+).
+
+    Setor NÃO é eliminatório (só ajusta o score). Retorna (passou, motivo).
+    Dado faltante de porte não elimina (benefício da dúvida — o humano validou).
+    """
+    cargo = lead.get("cargo_validado") or lead.get("cargo")
+    if not is_decisor(cargo):
+        return False, f"Cargo '{cargo}' não é decisor de segurança/TI (fora do ICP)."
+
+    func = parse_funcionarios(lead.get("funcionarios"))
+    if func is not None and func < min_funcionarios:
+        return False, f"Empresa com {func} funcionários (< {min_funcionarios}, fora do ICP)."
+
+    return True, "Atende ao ICP (cargo decisor e porte)."
+
+
+def contar_vagas_ocupadas() -> int:
+    """Nº de leads que já ocupam uma vaga (confirmados e além)."""
+    supabase = get_supabase()
+    resp = (
+        supabase.table("leads")
+        .select("id", count="exact")
+        .in_("status", list(STATUS_COM_VAGA))
+        .execute()
+    )
+    return resp.count or 0
+
+
+def vagas_disponiveis() -> int:
+    """Vagas restantes (capacidade - ocupadas). Nunca negativo."""
+    from core.config import get_settings
+
+    return max(0, get_settings().event_capacity - contar_vagas_ocupadas())
+
+
+def evento_lotado() -> bool:
+    return vagas_disponiveis() <= 0
+
+
+def tem_vaga_garantida(lead: dict) -> bool:
+    return lead.get("status") in STATUS_COM_VAGA

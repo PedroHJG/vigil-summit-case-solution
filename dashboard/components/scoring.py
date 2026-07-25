@@ -6,6 +6,8 @@ Duas métricas derivadas dos dados do funil:
    Base pelo estágio do funil + ajustes por aderência ao ICP:
      - cargo executivo (CISO/CTO) ...... +7 p.p. | Diretor/Gestor ....... +4 p.p.
      - empresa com 200+ funcionários ... +5 p.p.
+     - acompanhante registrado ......... +4 p.p.
+     - aderência do setor (0-100) ...... ±6 p.p. ((setor_score − 50) × 0,12)
      - lead_score do agente (0-100) .... até +15 p.p. (0,15 × score)
    Estados terminais são fixos: compareceu/pós-evento = 100, ausente = 0.
 
@@ -78,6 +80,12 @@ def prob_presenca(lead: pd.Series) -> float:
     acomp = lead.get("acompanhantes")
     if pd.notna(acomp) and acomp and int(acomp) >= 1:
         prob += 4
+
+    # Aderência do setor ao ICP (setor tech/regulado > varejo): centrado em 50,
+    # então empurra p/ cima ou p/ baixo. Não é eliminatório (isso é no funil).
+    setor = lead.get("setor_score")
+    if pd.notna(setor) and setor is not None:
+        prob += (float(setor) - 50) * 0.12
 
     score = lead.get("lead_score")
     if pd.notna(score) and score is not None:

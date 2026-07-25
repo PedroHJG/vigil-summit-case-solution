@@ -131,7 +131,11 @@ acompanhantes_total = int(leads.loc[
     "acompanhantes",
 ].sum()) if total else 0
 
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+# Vagas: sempre sobre a base COMPLETA (capacidade é global, não afetada por filtro).
+vagas_ocupadas = int(leads_all["status"].isin(STATUS_COM_VAGA).sum()) if len(leads_all) else 0
+vagas_restantes = max(0, EVENT_CAPACITY - vagas_ocupadas)
+
+k1, k2, k3, k4, k5, k6, k7 = st.columns(7)
 k1.metric("Leads captados", total, help="Total de inscrições recebidas pela landing (após filtros).")
 k2.metric(
     "Taxa de qualificação",
@@ -163,6 +167,14 @@ k6.metric(
     "Reuniões agendadas",
     reunioes,
     help="Problema 3 — follow-up: conversões em reunião comercial pós-evento.",
+)
+k7.metric(
+    "Vagas",
+    f"{vagas_ocupadas}/{EVENT_CAPACITY}",
+    f"{vagas_restantes} restantes" if vagas_restantes else "ESGOTADO",
+    delta_color="off",
+    help="Capacidade do evento (120 lugares). Ao esgotar, novas confirmações são "
+         "bloqueadas (FCFS) e interações de não-confirmados recebem aviso.",
 )
 
 st.divider()
@@ -199,8 +211,9 @@ with st.expander("Como a probabilidade e a temperatura são calculadas"):
         **Probabilidade de presença** parte do estágio do funil (novo 10% → em conversa 28%
         → aguardando validação 40% → qualificado 55% → confirmado 80%) e soma aderência ao
         ICP: cargo executivo (CISO/CTO) **+7 p.p.**, Diretor/Gestor **+4 p.p.**, empresa 200+
-        funcionários **+5 p.p.**, acompanhante registrado **+4 p.p.** (compromisso social) e
-        até **+15 p.p.** pelo score dado pelo agente na conversa.
+        funcionários **+5 p.p.**, acompanhante registrado **+4 p.p.** (compromisso social),
+        **aderência do setor ±6 p.p.** (setor tech/regulado sobe, varejo desce) e até
+        **+15 p.p.** pelo score dado pelo agente na conversa.
         Compareceu/pós-evento = 100%; ausente = 0%.
 
         **Temperatura**: 🔥 Quente ≥ 60% · Morno 35–59% · Frio < 35% · Descartado
@@ -243,14 +256,17 @@ with tab_leads:
         tabela = leads.sort_values("prob_presenca", ascending=False).copy()
         tabela["status"] = tabela["status"].map(STATUS_LABELS).fillna(tabela["status"])
         tabela["cargo_final"] = tabela["cargo_validado"].fillna(tabela["cargo"])
+        if "setor_score" not in tabela.columns:
+            tabela["setor_score"] = None
         st.dataframe(
             tabela[
-                ["nome", "empresa", "cargo_final", "funcionarios", "acompanhantes",
-                 "temperatura", "prob_presenca", "status", "lead_score", "email", "id"]
+                ["nome", "empresa", "cargo_final", "funcionarios", "setor_score",
+                 "acompanhantes", "temperatura", "prob_presenca", "status",
+                 "lead_score", "email", "id"]
             ].rename(columns={
                 "nome": "Nome", "empresa": "Empresa", "cargo_final": "Cargo",
-                "funcionarios": "Funcionários", "acompanhantes": "Acompanhantes",
-                "temperatura": "Temperatura",
+                "funcionarios": "Funcionários", "setor_score": "Aderência setor",
+                "acompanhantes": "Acompanhantes", "temperatura": "Temperatura",
                 "prob_presenca": "Prob. presença", "status": "Status",
                 "lead_score": "Score agente", "email": "E-mail", "id": "ID",
             }),
@@ -259,6 +275,10 @@ with tab_leads:
             column_config={
                 "Prob. presença": st.column_config.ProgressColumn(
                     format="%.0f%%", min_value=0, max_value=100
+                ),
+                "Aderência setor": st.column_config.ProgressColumn(
+                    format="%d", min_value=0, max_value=100,
+                    help="Aderência do setor da empresa ao ICP (Claude, 0-100).",
                 ),
                 "Score agente": st.column_config.NumberColumn(format="%d"),
             },

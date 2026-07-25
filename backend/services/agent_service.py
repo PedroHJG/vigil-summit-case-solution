@@ -43,6 +43,14 @@ FALLBACK_ERROR_MESSAGE = (
     "nosso time entra em contato em breve."
 )
 
+# Enviada quando o evento está lotado e o lead ainda não tem vaga garantida.
+SOLD_OUT_MESSAGE = (
+    "Poxa, tenho uma notícia difícil 😕 As vagas do {event_name} se esgotaram — "
+    "são apenas {capacity} lugares e todos já foram confirmados. Coloquei você na "
+    "lista de espera e, se abrir uma vaga, aviso você imediatamente por aqui. "
+    "Obrigada pelo interesse!"
+)
+
 
 # =============================================================================
 # Conversas
@@ -138,6 +146,21 @@ def handle_incoming_message(incoming: IncomingMessage) -> str | None:
         logger.info("Lead %s sem conversa ativa; mensagem ignorada.", lead["id"])
         return None
 
+    # Evento lotado: se o lead ainda NÃO tem vaga garantida, qualquer interação
+    # recebe o aviso de esgotado (curto-circuito, sem gastar turno do agente).
+    # Quem já está confirmado/pós-evento segue o fluxo normal.
+    if not lead_service.tem_vaga_garantida(lead) and lead_service.evento_lotado():
+        settings = get_settings()
+        msg = SOLD_OUT_MESSAGE.format(
+            event_name=settings.event_name, capacity=settings.event_capacity
+        )
+        try:
+            whatsapp_service.send_text(phone_e164, msg)
+        except Exception:
+            logger.exception("Falha ao enviar aviso de esgotado ao lead %s", lead["id"])
+        lead_service.log_event(lead["id"], "interacao_evento_lotado", {})
+        return msg
+
     # Qualquer resposta do lead marca o último toque da régua como respondido
     # (alimenta a lógica de "mudar o ângulo" do próximo toque).
     try:
@@ -152,7 +175,15 @@ def handle_incoming_message(incoming: IncomingMessage) -> str | None:
     if incoming.button_id == CONFIRM_BUTTON_ID:
         from services import confirmation_service
 
-        confirmation_service.confirm_lead(lead)
+        resultado = confirmation_service.confirm_lead(lead)
+        # Corrida rara: encheu entre o envio do botão e o clique.
+        if resultado.get("esgotado"):
+            settings = get_settings()
+            msg = SOLD_OUT_MESSAGE.format(
+                event_name=settings.event_name, capacity=settings.event_capacity
+            )
+            whatsapp_service.send_text(phone_e164, msg)
+            return msg
         agent_input = KICKOFF_BUTTON_CONFIRMED
     elif incoming.button_id == DECLINE_BUTTON_ID:
         agent_input = KICKOFF_BUTTON_DECLINED

@@ -8,53 +8,92 @@ O sistema segue Clean Architecture no backend: **rotas** (controladores finos) �
 gatilhos; a Evolution API é o canal de WhatsApp; o Supabase é a única fonte de verdade.
 
 ```mermaid
+---
+config:
+  layout: elk
+  theme: base
+  themeVariables:
+    primaryTextColor: "#000000"
+    nodeTextColor: "#000000"
+    lineColor: "#555555"
+    edgeLabelBackground: "#FFFFFF"
+---
 flowchart LR
-  LP[Landing Page\nReact/Vite] -->|POST /api/v1/leads| BE[Backend FastAPI]
-  BE -->|insert status=novo| SB[(Supabase\nPostgreSQL)]
-  N8N[n8n\nroteador\n5 workflows] -->|polling 30s\nstatus=novo| SB
-  N8N -->|/internal/leads/id/enrich\n/internal/leads/id/engage| BE
-  N8N -->|/internal/validations/run\ncron 2min| BE
-  N8N -->|/internal/cadence/run\ncron 1h| BE
-  N8N -->|/internal/notifications/run\n/internal/follow-ups/run| BE
-  BE -->|scraping httpx+bs4| WEB[(Site da empresa)]
-  BE <-->|sendText/sendButtons\nwebhook| EVO[Evolution API\nWhatsApp]
-  BE -->|tool sheets| GS[Google Sheets\nhuman-in-the-loop]
-  BE -->|tool calendar\nOAuth do dono| GC[Google Calendar]
-  BE -->|SMTP| MAIL[Gmail]
-  DASH[Streamlit] -->|leitura 15s| SB
+  LP[Landing Page<br/>React/Vite]
+  BE[Backend<br/>FastAPI]
+  SB[(Supabase<br/>PostgreSQL)]
+  N8N[n8n<br/>Roteador<br/>5 workflows]
+  WEB[(Site da empresa)]
+  EVO[Evolution API<br/>WhatsApp]
+  GS[Google Sheets<br/>human-in-the-loop]
+  GC[Google Calendar]
+  MAIL[Gmail]
+  DASH[Streamlit]
+
+  LP -->|POST /api/v1/leads| BE
+  BE -->|insert<br/>status=novo| SB
+  N8N -->|polling 30s<br/>status=novo| SB
+  N8N -->|/internal/leads/id/enrich<br/>/internal/leads/id/engage| BE
+  N8N -->|/internal/validations/run<br/>cron 2min| BE
+  N8N -->|/internal/cadence/run<br/>cron 1h| BE
+  N8N -->|/internal/notifications/run<br/>/internal/follow-ups/run| BE
+  BE -->|scraping<br/>httpx+bs4| WEB
+  BE <-->|sendText/sendButtons<br/>webhook| EVO
+  BE -->|tool sheets| GS
+  BE -->|tool calendar<br/>OAuth do dono| GC
+  BE -->|SMTP| MAIL
+  DASH -->|leitura 15s| SB
+
+  classDef frontend stroke:#818cf8,fill:#eef2ff,color:#000000
+  classDef backend stroke:#2dd4bf,fill:#f0fdfa,color:#000000
+  classDef database stroke:#a78bfa,fill:#f5f3ff,color:#000000
+  classDef external stroke:#fb923c,fill:#fff7ed,color:#000000
+  classDef messaging stroke:#e879f9,fill:#fdf4ff,color:#000000
+  classDef analytics stroke:#4ade80,fill:#f0fdf4,color:#000000
+
+  class LP frontend
+  class BE backend
+  class N8N backend
+  class SB database
+  class WEB external
+  class EVO messaging
+  class GS external
+  class GC external
+  class MAIL messaging
+  class DASH analytics
 ```
 
 ## Fluxo do LangChain
 
 ### Componentes (backend/agent/)
 
-| Arquivo | Responsabilidade |
-|---|---|
-| `prompts.py` | Templates de sistema PT-BR: resumo de enriquecimento, agente pré-evento (Sofia — qualificação, curadoria, confirmação, acompanhantes), agente pós-evento (follow-up comercial), kickoffs (incl. os 7 toques da régua proativa `CADENCE_KICKOFFS`). |
-| `memory.py` | Memória nativa do LangChain: `PostgresChatMessageHistory` (langchain-postgres) na tabela `langchain_chat_history` do Supabase. Cada conversa tem um `session_id` UUID. |
-| `chains.py` | Fábricas dos fluxos: chain de enriquecimento (`prompt \| ChatAnthropic \| JsonOutputParser`) e agentes conversacionais (`create_tool_calling_agent` + `AgentExecutor` + `RunnableWithMessageHistory`), com normalização do output do Claude para texto puro antes de persistir na memória. |
-| `tools/scraper.py` | Scraping institucional (httpx + BeautifulSoup); usado diretamente pela chain de enriquecimento (`scrape_site()`), não é uma tool do agente conversacional. |
-| `tools/sheets.py` | `registrar_lead_curadoria`, `consultar_validacao_linkedin` — escreve/lê a planilha da curadoria humana (gspread), mapeando colunas por palavra-chave. |
-| `tools/calendar.py` | `verificar_disponibilidade`, `agendar_reuniao` — free/busy real da agenda do dono (OAuth), cria a reunião comercial pós-evento e persiste em `meetings`. |
-| `tools/confirmation.py` | `enviar_botao_confirmacao`, `confirmar_inscricao` — mensagem interativa de confirmação (com fallback texto) e efetivação da confirmação de inscrição. |
-| `tools/crm.py` | `atualizar_status_lead` (allowlist de status), `registrar_acompanhantes` (0–2) — únicas portas de escrita do agente no funil. |
+| Arquivo                 | Responsabilidade                                                                                                                                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prompts.py`            | Templates de sistema PT-BR: resumo de enriquecimento, agente pré-evento (Sofia — qualificação, curadoria, confirmação, acompanhantes), agente pós-evento (follow-up comercial), kickoffs (incl. os 7 toques da régua proativa `CADENCE_KICKOFFS`).                                         |
+| `memory.py`             | Memória nativa do LangChain: `PostgresChatMessageHistory` (langchain-postgres) na tabela `langchain_chat_history` do Supabase. Cada conversa tem um `session_id` UUID.                                                                                                                     |
+| `chains.py`             | Fábricas dos fluxos: chain de enriquecimento (`prompt \| ChatAnthropic \| JsonOutputParser`) e agentes conversacionais (`create_tool_calling_agent` + `AgentExecutor` + `RunnableWithMessageHistory`), com normalização do output do Claude para texto puro antes de persistir na memória. |
+| `tools/scraper.py`      | Scraping institucional (httpx + BeautifulSoup); usado diretamente pela chain de enriquecimento (`scrape_site()`), não é uma tool do agente conversacional.                                                                                                                                 |
+| `tools/sheets.py`       | `registrar_lead_curadoria`, `consultar_validacao_linkedin` — escreve/lê a planilha da curadoria humana (gspread), mapeando colunas por palavra-chave.                                                                                                                                      |
+| `tools/calendar.py`     | `verificar_disponibilidade`, `agendar_reuniao` — free/busy real da agenda do dono (OAuth), cria a reunião comercial pós-evento e persiste em `meetings`.                                                                                                                                   |
+| `tools/confirmation.py` | `enviar_botao_confirmacao`, `confirmar_inscricao` — mensagem interativa de confirmação (com fallback texto) e efetivação da confirmação de inscrição.                                                                                                                                      |
+| `tools/crm.py`          | `atualizar_status_lead` (allowlist de status), `registrar_acompanhantes` (0–2) — únicas portas de escrita do agente no funil.                                                                                                                                                              |
 
 ### Composição por fase
 
-| Fase | System prompt | Tools disponíveis |
-|---|---|---|
+| Fase       | System prompt                                                             | Tools disponíveis                                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Pré-evento | `PRE_EVENT_SYSTEM_PROMPT` (lead + contexto enriquecido + dados do evento) | `registrar_lead_curadoria`, `consultar_validacao_linkedin`, `enviar_botao_confirmacao`, `confirmar_inscricao`, `registrar_acompanhantes`, `atualizar_status_lead` |
-| Pós-evento | `POST_EVENT_SYSTEM_PROMPT` (mesmo contexto, objetivo = reunião) | `verificar_disponibilidade`, `agendar_reuniao`, `atualizar_status_lead` |
+| Pós-evento | `POST_EVENT_SYSTEM_PROMPT` (mesmo contexto, objetivo = reunião)           | `verificar_disponibilidade`, `agendar_reuniao`, `atualizar_status_lead`                                                                                           |
 
 A **régua proativa** (toques anti no-show entre a qualificação e o evento) não é uma
-fase própria do agente — é o `cadence_service` (fora do LangChain) decidindo *quando*
+fase própria do agente — é o `cadence_service` (fora do LangChain) decidindo _quando_
 reabrir a conversa pré-evento existente com um kickoff específico (`CADENCE_KICKOFFS`);
 o agente responde com as mesmas tools da fase pré-evento. Ver `docs/communication.md`
 para as regras de negócio de cada toque.
 
 As tools são criadas por **fábricas com closure do lead** (`make_sheets_tool(lead)`,
-`make_calendar_tool(lead)`, `make_crm_tool(lead_id)`, etc.): o LLM nunca escolhe *de qual
-lead* está falando — o backend injeta essa amarração, eliminando uma classe inteira de
+`make_calendar_tool(lead)`, `make_crm_tool(lead_id)`, etc.): o LLM nunca escolhe _de qual
+lead_ está falando — o backend injeta essa amarração, eliminando uma classe inteira de
 erros e de prompt injection.
 
 ### Ciclo de um turno de conversa

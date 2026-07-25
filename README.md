@@ -22,7 +22,6 @@ negócio derivadas (probabilidade de presença, temperatura do lead).
 - [Manipulando `EVENT_DATE` para testes](#manipulando-event_date-para-testes)
 - [Troubleshooting](#troubleshooting)
 - [Tratamento de erros e rate limits](#tratamento-de-erros-e-rate-limits)
-- [Publicando no GitHub](#publicando-no-github)
 - [Documentação técnica](#documentação-técnica)
 
 ## Arquitetura

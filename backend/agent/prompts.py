@@ -24,6 +24,15 @@ contendo exatamente estas chaves:
 "sem indício claro" etc.).
 - "ganchos": array de até 3 strings, cada uma um gancho de conversa ligando o negócio da \
 empresa a riscos/oportunidades de segurança na era da IA.
+- "setor_aderencia": inteiro de 0 a 100 indicando o quão o SETOR da empresa se alinha ao \
+público e ao tema do evento (segurança cibernética e IA). Critérios:
+    * 80-100: tecnologia, software, cibersegurança, fintech, telecom, cloud/SaaS — núcleo do público.
+    * 60-79: setores REGULADOS com forte pressão de compliance (financeiro/bancos, saúde, \
+governo, seguros, energia) — alto interesse na trilha de conformidade (ISO 27001, LGPD, SOC 2).
+    * 30-59: indústria, educação, logística, serviços B2B com TI relevante mas não central.
+    * 0-29: varejo de baixa maturidade digital, comércio local, setores com pouca aderência a \
+segurança/IA.
+  Se não houver evidência do setor, use 50 (neutro).
 
 Se o texto for insuficiente, preencha os campos com o que for possível e use \
 "sem indício claro" onde não houver informação. Nunca invente fatos específicos \

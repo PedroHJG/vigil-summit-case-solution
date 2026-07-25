@@ -24,14 +24,18 @@ logger = logging.getLogger(__name__)
 class ValidationRunResult(BaseModel):
     verificados: int
     reengajados: list[str] = []
+    desqualificados: list[str] = []
     detalhes: list[str] = []
 
 
 def run_validation_checks() -> ValidationRunResult:
     from services import agent_service  # import tardio (evita ciclo)
 
+    from core.supabase_client import get_supabase
+
     pendentes = lead_service.list_leads_by_status("aguardando_validacao")
     reengajados: list[str] = []
+    desqualificados: list[str] = []
     detalhes: list[str] = []
 
     for lead in pendentes:
@@ -62,14 +66,39 @@ def run_validation_checks() -> ValidationRunResult:
             cargo_final = None
             perguntar_cargo = True
 
+        # O "validado=sim" do humano é necessário, mas NÃO suficiente: os
+        # requisitos duros do ICP (cargo decisor + porte 200+) são conferidos
+        # aqui. Setor não elimina (só ajusta o score). Usa o cargo já resolvido.
+        lead_para_icp = {**lead, "cargo_validado": cargo_final or lead.get("cargo_validado")}
+        passou_icp, motivo_icp = lead_service.checar_icp(lead_para_icp)
+        if not passou_icp:
+            get_supabase().table("leads").update(
+                {"status": "desqualificado", "motivo_status": f"Fora do ICP: {motivo_icp}"}
+            ).eq("id", lead["id"]).execute()
+            lead_service.log_event(
+                lead["id"], "desqualificado_icp", {"motivo": motivo_icp}
+            )
+            desqualificados.append(lead["id"])
+            detalhes.append(f"{lead['id']}: desqualificado — {motivo_icp}")
+            continue
+
+        # Se o evento já está lotado, não há vaga para reengajar/confirmar —
+        # o lead fica qualificado (lista de espera implícita) sem ser reengajado.
+        if lead_service.evento_lotado():
+            get_supabase().table("leads").update(
+                {"status": "qualificado", "cargo_validado": cargo_final,
+                 "motivo_status": "Aprovado, mas evento lotado (lista de espera)"}
+            ).eq("id", lead["id"]).execute()
+            lead_service.log_event(lead["id"], "aprovado_sem_vaga", {})
+            detalhes.append(f"{lead['id']}: aprovado, mas sem vaga (evento lotado)")
+            continue
+
         update: dict = {
             "status": "qualificado",
-            "motivo_status": "Curadoria humana validou o LinkedIn",
+            "motivo_status": "Curadoria validou o LinkedIn + ICP conferido",
         }
         if cargo_final:
             update["cargo_validado"] = cargo_final
-        from core.supabase_client import get_supabase
-
         get_supabase().table("leads").update(update).eq("id", lead["id"]).execute()
         lead_service.log_event(
             lead["id"],
@@ -85,5 +114,8 @@ def run_validation_checks() -> ValidationRunResult:
             detalhes.append(f"{lead['id']}: reengajamento falhou ({exc})")
 
     return ValidationRunResult(
-        verificados=len(pendentes), reengajados=reengajados, detalhes=detalhes
+        verificados=len(pendentes),
+        reengajados=reengajados,
+        desqualificados=desqualificados,
+        detalhes=detalhes,
     )

@@ -75,10 +75,26 @@ def make_confirmar_inscricao_tool(lead: dict) -> StructuredTool:
     """Tool que efetiva a confirmação quando o lead confirma por texto."""
 
     def _confirmar() -> str:
+        from core.config import get_settings
         from services import confirmation_service, lead_service
 
         lead_atual = lead_service.get_lead(lead["id"])
         resultado = confirmation_service.confirm_lead(lead_atual)
+
+        if resultado.get("esgotado"):
+            s = get_settings()
+            return json.dumps(
+                {
+                    "status": "esgotado",
+                    "detalhe": (
+                        f"As {s.event_capacity} vagas do evento já se esgotaram — NÃO foi "
+                        "possível confirmar. Avise o lead com empatia que ele entrou na "
+                        "lista de espera e será avisado se abrir vaga."
+                    ),
+                },
+                ensure_ascii=False,
+            )
+
         return json.dumps(
             {
                 "status": "confirmado",

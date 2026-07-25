@@ -33,6 +33,13 @@ STATUS_LABELS = {
 }
 
 # Funil cumulativo: cada etapa conta os leads que CHEGARAM até ela (ou além)
+# Capacidade do evento (espelha EVENT_CAPACITY do backend / RAG: 120 lugares).
+EVENT_CAPACITY = 120
+# Status que já ocupam uma vaga garantida.
+STATUS_COM_VAGA = {
+    "confirmado", "compareceu", "ausente", "em_follow_up", "reuniao_agendada",
+}
+
 FUNNEL_STAGES = [
     ("Inscritos", set(STATUS_ORDER)),
     ("Em conversa", {
