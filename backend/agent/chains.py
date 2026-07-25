@@ -29,6 +29,7 @@ from agent.tools.confirmation import (
     make_enviar_botao_confirmacao_tool,
 )
 from agent.tools.crm import make_acompanhantes_tool, make_crm_tool
+from agent.tools.knowledge import make_conteudo_evento_tool
 from agent.tools.sheets import make_registrar_curadoria_tool, make_sheets_tool
 from core.config import get_settings
 
@@ -129,6 +130,7 @@ def build_pre_event_chain(lead: dict, contexto_empresa: str) -> RunnableWithMess
         make_enviar_botao_confirmacao_tool(lead),
         make_confirmar_inscricao_tool(lead),
         make_acompanhantes_tool(lead["id"]),
+        make_conteudo_evento_tool(),
         make_crm_tool(lead["id"]),
     ]
     return _build_conversational_agent(system_text, tools)
@@ -140,6 +142,7 @@ def build_post_event_chain(lead: dict, contexto_empresa: str) -> RunnableWithMes
     tools = [
         make_disponibilidade_tool(),
         make_calendar_tool(lead),
+        make_conteudo_evento_tool(),
         make_crm_tool(lead["id"]),
     ]
     return _build_conversational_agent(system_text, tools)

@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-8"
     anthropic_max_tokens: int = 1024
 
+    # --- RAG (base de conhecimento do evento via Voyage AI + pgvector) --------
+    # A Anthropic não tem API de embeddings própria; Voyage é o provedor que ela
+    # recomenda. Usado na ingestão (scripts/ingest_knowledge.py) e na tool
+    # consultar_conteudo_evento. Sem a chave, a tool degrada com mensagem clara.
+    voyage_api_key: str = ""
+    voyage_model: str = "voyage-3.5"
+    voyage_embedding_dim: int = 1024
+    rag_top_k: int = 3  # nº de chunks retornados por busca
+
     # --- Evolution API (WhatsApp) ---------------------------------------------
     evolution_api_url: str = "http://localhost:8080"
     evolution_api_key: str = ""
