@@ -248,7 +248,7 @@ with c_dia:
 # =============================================================================
 
 tab_leads, tab_status, tab_notif, tab_meet = st.tabs(
-    ["🎯 Leads priorizados", "Status detalhado", "Notificações", "Reuniões"]
+    ["Leads", "Status detalhado", "Notificações", "Reuniões"]
 )
 
 with tab_leads:
@@ -256,20 +256,39 @@ with tab_leads:
         st.info("Nenhum lead com os filtros atuais.")
     else:
         tabela = leads.sort_values("prob_presenca", ascending=False).copy()
-        tabela["status"] = tabela["status"].map(STATUS_LABELS).fillna(tabela["status"])
         tabela["cargo_final"] = tabela["cargo_validado"].fillna(tabela["cargo"])
         if "setor_score" not in tabela.columns:
             tabela["setor_score"] = None
+        if "motivo_status" not in tabela.columns:
+            tabela["motivo_status"] = None
+
+        # Motivo resumido — só para desqualificados (usa o status ORIGINAL,
+        # antes de virar rótulo). Remove prefixos redundantes do texto.
+        def _motivo_desq(row) -> str:
+            if row["status"] != "desqualificado":
+                return ""
+            m = row.get("motivo_status")
+            if m is None or pd.isna(m):  # NaN do pandas é truthy — tratar explícito
+                return ""
+            m = str(m).strip()
+            for pref in ("Fora do ICP: ", "Fora do perfil: "):
+                if m.startswith(pref):
+                    m = m[len(pref):]
+            return m
+
+        tabela["motivo_desq"] = tabela.apply(_motivo_desq, axis=1)
+        tabela["status"] = tabela["status"].map(STATUS_LABELS).fillna(tabela["status"])
         st.dataframe(
             tabela[
                 ["nome", "empresa", "cargo_final", "funcionarios", "setor_score",
                  "acompanhantes", "temperatura", "prob_presenca", "status",
-                 "lead_score", "email", "id"]
+                 "motivo_desq", "lead_score", "email", "id"]
             ].rename(columns={
                 "nome": "Nome", "empresa": "Empresa", "cargo_final": "Cargo",
                 "funcionarios": "Funcionários", "setor_score": "Aderência setor",
                 "acompanhantes": "Acompanhantes", "temperatura": "Temperatura",
                 "prob_presenca": "Prob. presença", "status": "Status",
+                "motivo_desq": "Motivo (desq.)",
                 "lead_score": "Score agente", "email": "E-mail", "id": "ID",
             }),
             use_container_width=True,
@@ -281,6 +300,9 @@ with tab_leads:
                 "Aderência setor": st.column_config.ProgressColumn(
                     format="%d", min_value=0, max_value=100,
                     help="Aderência do setor da empresa ao ICP (Claude, 0-100).",
+                ),
+                "Motivo (desq.)": st.column_config.TextColumn(
+                    help="Por que o lead foi desqualificado (só para status 'Desqualificado').",
                 ),
                 "Score agente": st.column_config.NumberColumn(format="%d"),
             },
