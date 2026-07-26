@@ -121,11 +121,17 @@ def _build_conversational_agent(system_text: str, tools: list) -> RunnableWithMe
     )
 
 
-def build_pre_event_chain(lead: dict, contexto_empresa: str) -> RunnableWithMessageHistory:
-    """Agente de engajamento/qualificação pré-evento."""
+def build_pre_event_chain(
+    lead: dict, contexto_empresa: str, texto_do_lead: str = ""
+) -> RunnableWithMessageHistory:
+    """Agente de engajamento/qualificação pré-evento.
+
+    `texto_do_lead` (histórico + mensagem atual) é repassado à tool de curadoria
+    para validar que o LinkedIn informado foi realmente escrito pelo lead.
+    """
     system_text = PRE_EVENT_SYSTEM_PROMPT.format(**_lead_prompt_vars(lead, contexto_empresa))
     tools = [
-        make_registrar_curadoria_tool(lead),
+        make_registrar_curadoria_tool(lead, texto_do_lead),
         make_sheets_tool(lead),
         make_enviar_botao_confirmacao_tool(lead),
         make_confirmar_inscricao_tool(lead),

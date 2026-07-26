@@ -15,6 +15,7 @@ Colunas esperadas na planilha (a busca é por palavra-chave normalizada, então
 
 import json
 import logging
+import re
 import unicodedata
 from functools import lru_cache
 
@@ -150,11 +151,65 @@ def read_validation(whatsapp_e164: str) -> dict:
 
 
 # =============================================================================
+# Validação anti-alucinação do LinkedIn
+# =============================================================================
+
+# Perfil do LinkedIn: linkedin.com/in/<slug> ou /pub/<slug> (com subdomínio opcional).
+_LINKEDIN_RE = re.compile(
+    r"(?:https?://)?(?:[\w-]+\.)?linkedin\.com/(?:in|pub)/([\w\-.%À-ÿ]+)",
+    re.IGNORECASE,
+)
+
+
+def _alnum(texto: str) -> str:
+    """Normaliza para comparação: sem acento, minúsculo, só alfanumérico."""
+    nfd = unicodedata.normalize("NFD", str(texto))
+    sem_acento = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]", "", sem_acento.lower())
+
+
+def validar_linkedin(linkedin_url: str, texto_do_lead: str) -> tuple[bool, str]:
+    """Confere se o LinkedIn é um perfil real E foi de fato escrito pelo lead.
+
+    Defesa em profundidade contra o agente inventar a URL para preencher o
+    campo obrigatório da tool:
+    1. formato — precisa ser um perfil linkedin.com/in|pub/<slug>;
+    2. procedência — o slug precisa aparecer no que o LEAD escreveu na conversa
+       (o agente não pode "trazer" um slug que o lead nunca mencionou).
+
+    Retorna (ok, motivo). Fail-safe: se não houver texto do lead para conferir
+    (ex.: toque proativo), a procedência não é exigida — mas o formato sim.
+    """
+    m = _LINKEDIN_RE.search(linkedin_url or "")
+    if not m:
+        return False, "não parece um link de perfil do LinkedIn (linkedin.com/in/...)."
+
+    slug = _alnum(m.group(1))
+    if len(slug) < 3:
+        return False, "o identificador do perfil do LinkedIn está muito curto/genérico."
+
+    if texto_do_lead:
+        if slug not in _alnum(texto_do_lead):
+            return False, (
+                "este LinkedIn NÃO foi enviado pelo lead nesta conversa — não invente. "
+                "Peça ao lead o link do perfil dele antes de registrar."
+            )
+
+    return True, "ok"
+
+
+# =============================================================================
 # Tools do agente
 # =============================================================================
 
 class RegistrarCuradoriaArgs(BaseModel):
-    linkedin_url: str = Field(description="URL do perfil do LinkedIn informada pelo lead.")
+    linkedin_url: str = Field(
+        description=(
+            "URL do perfil do LinkedIn EXATAMENTE como o lead enviou na conversa. "
+            "Nunca invente, deduza ou complete — se o lead não mandou o link, não chame "
+            "esta ferramenta; peça o link primeiro."
+        )
+    )
     funcionarios: str = Field(
         description=(
             "Quantidade de funcionários da empresa dita pelo lead "
@@ -163,11 +218,23 @@ class RegistrarCuradoriaArgs(BaseModel):
     )
 
 
-def make_registrar_curadoria_tool(lead: dict) -> StructuredTool:
-    """Tool que grava a linha de curadoria e move o lead para validação humana."""
+def make_registrar_curadoria_tool(lead: dict, texto_do_lead: str = "") -> StructuredTool:
+    """Tool que grava a linha de curadoria e move o lead para validação humana.
+
+    `texto_do_lead` é tudo que o lead escreveu na conversa (histórico + mensagem
+    atual); serve para validar que o LinkedIn informado foi REALMENTE dito por
+    ele, não inventado pelo agente.
+    """
 
     def _registrar(linkedin_url: str, funcionarios: str) -> str:
         from core.supabase_client import get_supabase
+
+        # Barreira anti-alucinação: só grava LinkedIn real e de fato enviado.
+        ok, motivo = validar_linkedin(linkedin_url, texto_do_lead)
+        if not ok:
+            return json.dumps(
+                {"erro": f"LinkedIn não registrado: {motivo}"}, ensure_ascii=False
+            )
 
         try:
             upsert_curadoria_row(lead, linkedin_url, funcionarios)

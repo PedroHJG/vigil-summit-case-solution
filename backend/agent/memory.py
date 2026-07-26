@@ -53,6 +53,31 @@ def ultima_mensagem_ai(session_id: str) -> str:
     return str((row[0] or {}).get("data", {}).get("content", ""))[:500]
 
 
+def mensagens_humanas(session_id: str) -> str:
+    """Concatena todas as falas do LEAD (humano) na sessão.
+
+    Usada para verificar, de forma determinística, se um dado que a tool vai
+    gravar (ex.: URL do LinkedIn) realmente foi escrito pelo lead — barreira
+    contra o agente inventar o valor para preencher um campo obrigatório.
+    """
+    settings = get_settings()
+    if not settings.database_url:
+        return ""
+    try:
+        with psycopg.connect(settings.database_url) as conn:
+            rows = conn.execute(
+                f"select message from {TABLE_NAME} "
+                "where session_id = %s and message->>'type' = 'human' "
+                "order by id",
+                (str(session_id),),
+            ).fetchall()
+    except Exception:
+        logger.exception("Falha ao ler mensagens humanas (session=%s)", session_id)
+        return ""
+    partes = [str((r[0] or {}).get("data", {}).get("content", "")) for r in rows]
+    return "\n".join(p for p in partes if p)
+
+
 def get_session_history(session_id: str) -> PostgresChatMessageHistory:
     """Factory usada pelo RunnableWithMessageHistory.
 

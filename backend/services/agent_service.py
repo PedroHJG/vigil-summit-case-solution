@@ -98,15 +98,23 @@ def _active_conversation(lead_id: str) -> dict | None:
     return convs[0]
 
 
-def _build_chain(lead: dict, fase: str):
+def _build_chain(lead: dict, fase: str, texto_do_lead: str = ""):
     contexto = enrichment_service.get_enrichment_context(lead["id"])
     if fase == "pos_evento":
         return build_post_event_chain(lead, contexto)
-    return build_pre_event_chain(lead, contexto)
+    return build_pre_event_chain(lead, contexto, texto_do_lead)
 
 
 def _invoke(lead: dict, fase: str, session_id: str, user_input: str) -> str:
-    chain = _build_chain(lead, fase)
+    # Reúne tudo que o lead escreveu (histórico + mensagem atual) para a tool de
+    # curadoria validar a procedência do LinkedIn (anti-alucinação).
+    from agent.memory import mensagens_humanas
+
+    texto_do_lead = ""
+    if fase == "pre_evento" and not user_input.startswith("[INSTRUÇÃO INTERNA]"):
+        texto_do_lead = f"{mensagens_humanas(session_id)}\n{user_input}".strip()
+
+    chain = _build_chain(lead, fase, texto_do_lead)
     result = chain.invoke(
         {"input": user_input},
         config={"configurable": {"session_id": str(session_id)}},
