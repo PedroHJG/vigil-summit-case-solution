@@ -78,6 +78,8 @@ def run_validation_checks() -> ValidationRunResult:
             lead_service.log_event(
                 lead["id"], "desqualificado_icp", {"motivo": motivo_icp}
             )
+            # Feedback amigável ao lead — não deixá-lo sem retorno após a curadoria.
+            agent_service.enviar_feedback_desqualificacao(lead)
             desqualificados.append(lead["id"])
             detalhes.append(f"{lead['id']}: desqualificado — {motivo_icp}")
             continue

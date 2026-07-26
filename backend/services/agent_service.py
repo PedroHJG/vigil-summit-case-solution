@@ -58,6 +58,27 @@ BLOQUEIO_MESSAGE = (
     "{horas}h. Depois disso, é só me chamar que retomo tudo sobre a sua inscrição. Até já!"
 )
 
+# Feedback amigável quando a curadoria não aprova o perfil do lead (fora do ICP).
+DESQUALIFICADO_MESSAGE = (
+    "Oi {nome}, aqui é a Sofia 💜 Passei para te dar um retorno sincero sobre o "
+    "{event_name}: as vagas desta edição são bem restritas e, após a curadoria, foram "
+    "priorizadas para perfis com foco mais direto no tema neste momento. Isso não diminui "
+    "em nada o seu trabalho — e vou guardar seu contato para as próximas oportunidades e "
+    "conteúdos. Muito obrigada pelo interesse! 🙏"
+)
+
+
+def enviar_feedback_desqualificacao(lead: dict) -> None:
+    """Avisa o lead, com empatia, que ele não foi aprovado na curadoria."""
+    settings = get_settings()
+    msg = DESQUALIFICADO_MESSAGE.format(
+        nome=lead["nome"].split()[0], event_name=settings.event_name
+    )
+    try:
+        whatsapp_service.send_text(lead["telefone_e164"], msg)
+    except Exception:
+        logger.exception("Falha ao enviar feedback de desqualificação ao lead %s", lead["id"])
+
 
 # =============================================================================
 # Conversas
