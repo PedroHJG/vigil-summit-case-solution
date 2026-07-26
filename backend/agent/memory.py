@@ -31,6 +31,28 @@ def ensure_history_table() -> None:
         PostgresChatMessageHistory.create_tables(conn, TABLE_NAME)
 
 
+def ultima_mensagem_ai(session_id: str) -> str:
+    """Última fala da IA (Sofia) na sessão — dá contexto ao classificador de
+    moderação para julgar respostas curtas do lead ('sim', uma data...)."""
+    settings = get_settings()
+    if not settings.database_url:
+        return ""
+    try:
+        with psycopg.connect(settings.database_url) as conn:
+            row = conn.execute(
+                f"select message from {TABLE_NAME} "
+                "where session_id = %s and message->>'type' = 'ai' "
+                "order by id desc limit 1",
+                (str(session_id),),
+            ).fetchone()
+    except Exception:
+        logger.exception("Falha ao ler última fala da IA (session=%s)", session_id)
+        return ""
+    if not row:
+        return ""
+    return str((row[0] or {}).get("data", {}).get("content", ""))[:500]
+
+
 def get_session_history(session_id: str) -> PostgresChatMessageHistory:
     """Factory usada pelo RunnableWithMessageHistory.
 

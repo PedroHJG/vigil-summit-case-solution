@@ -190,3 +190,62 @@ def evento_lotado() -> bool:
 
 def tem_vaga_garantida(lead: dict) -> bool:
     return lead.get("status") in STATUS_COM_VAGA
+
+
+# =============================================================================
+# Moderação de contexto (anti-abuso / economia de tokens)
+# =============================================================================
+
+def _parse_ts(valor) -> "datetime | None":
+    from datetime import datetime
+
+    if not valor:
+        return None
+    if isinstance(valor, datetime):
+        return valor
+    try:
+        return datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def bloqueio_ativo(lead: dict) -> bool:
+    """True se o atendimento automático do lead está bloqueado agora."""
+    from datetime import datetime, timezone
+
+    ate = _parse_ts(lead.get("bloqueado_ate"))
+    return ate is not None and ate > datetime.now(timezone.utc)
+
+
+def registrar_offtopic(lead_id: str) -> int:
+    """Incrementa o contador de off-topic consecutivas e retorna o novo valor."""
+    supabase = get_supabase()
+    atual = (
+        supabase.table("leads").select("off_topic_streak").eq("id", lead_id).execute()
+    )
+    novo = ((atual.data[0].get("off_topic_streak") or 0) if atual.data else 0) + 1
+    supabase.table("leads").update({"off_topic_streak": novo}).eq("id", lead_id).execute()
+    return novo
+
+
+def resetar_offtopic(lead_id: str) -> None:
+    get_supabase().table("leads").update({"off_topic_streak": 0}).eq(
+        "id", lead_id
+    ).execute()
+
+
+def bloquear_lead(lead_id: str, horas: int) -> None:
+    """Bloqueia o atendimento automático por N horas e zera o contador."""
+    from datetime import datetime, timedelta, timezone
+
+    ate = datetime.now(timezone.utc) + timedelta(hours=horas)
+    get_supabase().table("leads").update(
+        {"bloqueado_ate": ate.isoformat(), "off_topic_streak": 0}
+    ).eq("id", lead_id).execute()
+    log_event(lead_id, "bloqueado_offtopic", {"ate": ate.isoformat(), "horas": horas})
+
+
+def limpar_bloqueio(lead_id: str) -> None:
+    get_supabase().table("leads").update(
+        {"bloqueado_ate": None, "off_topic_streak": 0}
+    ).eq("id", lead_id).execute()

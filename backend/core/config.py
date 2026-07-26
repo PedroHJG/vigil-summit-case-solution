@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     voyage_embedding_dim: int = 1024
     rag_top_k: int = 3  # nº de chunks retornados por busca
 
+    # --- Moderação de contexto (anti-abuso / economia de tokens) ---------------
+    # Classificador leve (Haiku) filtra mensagens fora do tema ANTES do agente
+    # caro (Opus + tools). Após N mensagens off-topic consecutivas, o lead é
+    # bloqueado por algumas horas (respostas automáticas, sem LLM).
+    moderation_model: str = "claude-haiku-4-5-20251001"
+    offtopic_block_threshold: int = 10
+    offtopic_block_hours: int = 24
+
     # --- Evolution API (WhatsApp) ---------------------------------------------
     evolution_api_url: str = "http://localhost:8080"
     evolution_api_key: str = ""

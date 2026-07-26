@@ -51,6 +51,13 @@ SOLD_OUT_MESSAGE = (
     "Obrigada pelo interesse!"
 )
 
+# Enviada UMA vez, quando o lead atinge o limite de mensagens fora de contexto.
+BLOQUEIO_MESSAGE = (
+    "Percebi que nossas últimas mensagens fugiram bastante do tema do {event_name} 😅 "
+    "Sou uma assistente dedicada só ao evento, então vou pausar nosso atendimento por "
+    "{horas}h. Depois disso, é só me chamar que retomo tudo sobre a sua inscrição. Até já!"
+)
+
 
 # =============================================================================
 # Conversas
@@ -146,6 +153,14 @@ def handle_incoming_message(incoming: IncomingMessage) -> str | None:
         logger.info("Lead %s sem conversa ativa; mensagem ignorada.", lead["id"])
         return None
 
+    # Bloqueio por abuso de contexto: se ativo, ignora em SILÊNCIO (sem LLM, sem
+    # envio) — economia máxima. Se já expirou, limpa e volta a atender.
+    if lead_service.bloqueio_ativo(lead):
+        logger.info("Lead %s bloqueado (off-topic); mensagem ignorada.", lead["id"])
+        return None
+    if lead.get("bloqueado_ate"):  # existia mas expirou
+        lead_service.limpar_bloqueio(lead["id"])
+
     # Evento lotado: se o lead ainda NÃO tem vaga garantida, qualquer interação
     # recebe o aviso de esgotado (curto-circuito, sem gastar turno do agente).
     # Quem já está confirmado/pós-evento segue o fluxo normal.
@@ -188,6 +203,12 @@ def handle_incoming_message(incoming: IncomingMessage) -> str | None:
     elif incoming.button_id == DECLINE_BUTTON_ID:
         agent_input = KICKOFF_BUTTON_DECLINED
     else:
+        # Moderação de contexto: um classificador LEVE (Haiku) decide se a
+        # mensagem é sobre o evento antes de acionar o agente caro (Opus + tools).
+        # Off-topic é redirecionado sem tocar no Opus; após N consecutivas, bloqueia.
+        resultado_mod = _moderar_contexto(lead, conversation, incoming.text)
+        if resultado_mod is not None:
+            return resultado_mod  # já respondeu (redirecionamento ou bloqueio)
         agent_input = incoming.text
 
     status_antes = lead["status"]
@@ -224,6 +245,55 @@ def handle_incoming_message(incoming: IncomingMessage) -> str | None:
         )
 
     return resposta
+
+
+def _moderar_contexto(lead: dict, conversation: dict, texto: str) -> str | None:
+    """Filtra mensagens fora do tema (economiza tokens e mantém o contexto).
+
+    Retorna:
+    - None  -> mensagem no contexto; siga para o agente Opus.
+    - str   -> já respondeu ao lead (redirecionamento leve ou aviso de bloqueio);
+               o agente caro NÃO é acionado.
+    """
+    from agent.memory import ultima_mensagem_ai
+    from services import moderation_service
+
+    settings = get_settings()
+    ultima_sofia = ultima_mensagem_ai(conversation["session_id"])
+    veredito = moderation_service.classify(texto, ultima_sofia)
+
+    if not veredito["fora_de_contexto"]:
+        # Voltou ao contexto: zera a sequência de off-topic.
+        if lead.get("off_topic_streak"):
+            lead_service.resetar_offtopic(lead["id"])
+        return None
+
+    streak = lead_service.registrar_offtopic(lead["id"])
+
+    # Atingiu o limite -> bloqueia por N horas e avisa (uma única vez).
+    if streak >= settings.offtopic_block_threshold:
+        lead_service.bloquear_lead(lead["id"], settings.offtopic_block_hours)
+        msg = BLOQUEIO_MESSAGE.format(
+            event_name=settings.event_name, horas=settings.offtopic_block_hours
+        )
+        try:
+            whatsapp_service.send_text(lead["telefone_e164"], msg)
+        except Exception:
+            logger.exception("Falha ao enviar aviso de bloqueio ao lead %s", lead["id"])
+        return msg
+
+    # Abaixo do limite: redireciona com uma resposta LEVE (do classificador Haiku),
+    # sem acionar o Opus. Fallback fixo caso o classificador não gere a frase.
+    redirect = veredito["redirecionamento"] or (
+        "Consigo te ajudar só com assuntos do Vigil Summit 😊 Voltando pra lá: "
+        "quer que eu siga com a sua inscrição?"
+    )
+    try:
+        whatsapp_service.send_text(lead["telefone_e164"], redirect)
+    except Exception:
+        logger.exception("Falha ao enviar redirecionamento ao lead %s", lead["id"])
+    lead_service.log_event(lead["id"], "mensagem_offtopic", {"streak": streak})
+    return redirect
 
 
 def send_proactive_touch(lead: dict, kickoff: str) -> str:
