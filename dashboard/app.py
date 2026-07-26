@@ -10,6 +10,8 @@ from streamlit_autorefresh import st_autorefresh
 
 from components import dash_charts as charts
 from components.data import (
+    EVENT_CAPACITY,
+    STATUS_COM_VAGA,
     STATUS_LABELS,
     funnel_counts,
     load_leads,
